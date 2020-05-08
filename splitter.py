@@ -43,7 +43,7 @@ class Splitter:
         self.dels.append(edge)
         self.segment_end = edge[-1]
 
-    def reset_segment(self):
+    def pop_segment(self):
         """Resets current segment, returning current segment as dict."""
         segment = {
                 'start': self.segment_start,
@@ -73,21 +73,10 @@ class Splitter:
             self.segment_start = self.edge_bank.random_start()
             if self.segment_start is None:
                 return None
-        print(self.edge_bank.junctions)
-        print(self.segment_start)
         while self.step():
-            print(self.segment_end)
             pass
-        print(self.segment_end)
-        if self.segment_start == self.segment_end:
-            if len(self.dels) == len(self.adds):
-                print('segment is kmove!')
-            else:
-                print('segment is trivial!')
-        else:
-            print('regular segment')
         # We should have a segment now.
-        return self.reset_segment()
+        return self.pop_segment()
 
     def step(self):
         """Performs a step based on current state. Returns true if should continue, false if not."""

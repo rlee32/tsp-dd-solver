@@ -7,6 +7,32 @@ import plot_util
 import random
 from splitter import Splitter
 
+def is_cyclic(segment):
+    return segment['start'] == segment['end']
+
+def is_balanced(segment):
+    """Balanced means adds == dels."""
+    return len(segment['dels']) == len(segment['adds'])
+
+def combine_segments(s1, s2):
+    return { 'adds': s1['adds'] + s2['adds'], 'dels': s1['dels'] + s2['dels'] }
+
+def segments_to_kmoves(segments):
+    kmoves = []
+    trivials = []
+    uncategorized = { 'adds': [], 'dels': [] }
+    for segment in segments:
+        if is_cyclic(segment):
+            if is_balanced(segment):
+                kmoves.append(segment)
+            else:
+                trivials.append(segment)
+                uncategorized = combine_segments(uncategorized, segment)
+        else:
+            uncategorized = combine_segments(uncategorized, segment)
+    kmoves.append(uncategorized)
+    return kmoves
+
 def perturbed_hill_climb(xy, tour):
     tries = 0
     success = 0
@@ -14,7 +40,8 @@ def perturbed_hill_climb(xy, tour):
     while True:
         new_tour, new_length = two_opt.optimize(xy, tour_util.double_bridge(tour))
         segments = Splitter(tour, new_tour).get_segments()
-        print('segment count: {}'.format(len(segments)))
+        kmoves = segments_to_kmoves(segments)
+        print('kmoves: {}'.format(len(kmoves)))
         if new_length < best_length:
             print('found better tour in local optimum {}'.format(tries))
             tour = new_tour
