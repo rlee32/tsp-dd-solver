@@ -17,20 +17,38 @@ def is_balanced(segment):
 def combine_segments(s1, s2):
     return { 'adds': s1['adds'] + s2['adds'], 'dels': s1['dels'] + s2['dels'] }
 
-def segments_to_kmoves(segments):
+def merge_trivial_segments(trivial_segments):
+    trivial_map = {}
     kmoves = []
-    trivials = []
-    uncategorized = { 'adds': [], 'dels': [] }
-    for segment in segments:
-        if is_cyclic(segment):
-            if is_balanced(segment):
-                kmoves.append(segment)
-            else:
-                trivials.append(segment)
-                uncategorized = combine_segments(uncategorized, segment)
+    for s in trivial_segments:
+        assert(s['start'] == s['end'])
+        i = s['start']
+        if i in trivial_map:
+            # if a previous trivial added to map already, merge.
+            kmoves.append(combine_segments(trivial_map[i], s))
+            del trivial_map[i]
         else:
-            uncategorized = combine_segments(uncategorized, segment)
-    kmoves.append(uncategorized)
+            # otherwise, add trivial to the map, to be retrieved later if i is encountered again.
+            trivial_map[i] = s
+    # return remaining trivial segments.
+    remaining_trivials = [trivial_map[k] for k in trivial_map]
+    return kmoves, remaining_trivials
+
+def segments_to_kmoves(segments):
+    """segments are all segments that completely describe the difference between 2 local optima."""
+    # segments that are cyclic and independent (sequential) k-moves.
+    kmoves = [s for s in segments if is_cyclic(s) and is_balanced(s)]
+    # trivial segments, segments that are cyclic but not independent k-moves.
+    trivials = [s for s in segments if is_cyclic(s) and not is_balanced(s)]
+    # segments that are neither independent k-moves nor trivials.
+    other = [s for s in segments if not is_cyclic(s)]
+    # find trivial segment pairs that can be merged into kmoves, leaving trivials that are part of
+    # 2 separate segments.
+    kmoves_from_trivials, trivials = merge_trivial_segments(trivials)
+    if len(kmoves_from_trivials) > 0:
+        print('merged trivials to get {} kmoves!'.format(len(kmoves_from_trivials)))
+    kmoves += kmoves_from_trivials
+    # TODO: further merge trivials and make kmoves if possible.
     return kmoves
 
 def perturbed_hill_climb(xy, tour):
