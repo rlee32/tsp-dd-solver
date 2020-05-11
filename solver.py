@@ -2,6 +2,7 @@
 
 import reader
 import two_opt
+import basic
 import tour_util
 import plot_util
 import random
@@ -129,7 +130,12 @@ def consume_all_trivials(segments, trivials):
         print('    got {} more kmoves from consume_all_trivials.'.format(len(kmoves)))
     return kmoves
 
-def segments_to_kmoves(segments):
+def kmove_cost(xy, segment):
+    gain = sum([basic.edge_cost(xy, edge) for edge in segment['dels']])
+    loss = sum([basic.edge_cost(xy, edge) for edge in segment['adds']])
+    return gain - loss
+
+def segments_to_kmoves(xy, segments):
     """segments are all segments that completely describe the difference between 2 local optima."""
     # segments that are cyclic and independent (sequential) k-moves.
     kmoves = [s for s in segments if is_cyclic(s) and is_balanced(s)]
@@ -148,7 +154,7 @@ def segments_to_kmoves(segments):
     kmoves += remaining_kmoves
     print('    total independent kmoves found in local optima diff: {}'.format(len(kmoves)))
     for k in kmoves:
-        print('        {}'.format(len(k['dels'])))
+        print('        {}: {}'.format(len(k['dels']), kmove_cost(xy, k)))
     return kmoves
 
 def perturbed_hill_climb(xy, tour):
@@ -158,7 +164,7 @@ def perturbed_hill_climb(xy, tour):
     while True:
         new_tour, new_length = two_opt.optimize(xy, tour_util.double_bridge(tour))
         segments = Splitter(tour, new_tour).get_segments()
-        kmoves = segments_to_kmoves(segments)
+        kmoves = segments_to_kmoves(xy, segments)
         print('kmoves: {}'.format(len(kmoves)))
         if new_length < best_length:
             print('found better tour in local optimum {}'.format(tries))
