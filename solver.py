@@ -34,6 +34,10 @@ def merge_trivial_segments(trivial_segments):
     remaining_trivials = [trivial_map[k] for k in trivial_map]
     return kmoves, remaining_trivials
 
+def consume_all_trivials(segments, trivials):
+    """segments are non-trivial, acyclic segments."""
+    return []
+
 def segments_to_kmoves(segments):
     """segments are all segments that completely describe the difference between 2 local optima."""
     # segments that are cyclic and independent (sequential) k-moves.
@@ -48,7 +52,9 @@ def segments_to_kmoves(segments):
     if len(kmoves_from_trivials) > 0:
         print('merged trivials to get {} kmoves!'.format(len(kmoves_from_trivials)))
     kmoves += kmoves_from_trivials
-    # TODO: further merge trivials and make kmoves if possible.
+    # Consume all trivials to produce remaining kmoves.
+    remaining_kmoves = consume_all_trivials(other, trivials)
+    kmoves += remaining_kmoves
     return kmoves
 
 def perturbed_hill_climb(xy, tour):
