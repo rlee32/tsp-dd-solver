@@ -135,8 +135,44 @@ def kmove_cost(xy, segment):
     loss = sum([basic.edge_cost(xy, edge) for edge in segment['adds']])
     return gain - loss
 
+def make_adjacency_map(tour):
+    adjacency = {}
+    n = len(tour)
+    for si in range(n):
+        i = tour[si]
+        adjacency[i] = [tour[si - 1], tour[(si + 1) % n]]
+    return adjacency
+
+def perform_kmove(adjacency_map, kmove):
+    for d in kmove['dels']:
+        adjacency_map[d[0]] = [x for x in adjacency_map[d[0]] if d[1] != x]
+        adjacency_map[d[1]] = [x for x in adjacency_map[d[1]] if d[0] != x]
+    for a in kmove['adds']:
+        adjacency_map[a[0]].append(a[1])
+        adjacency_map[a[1]].append(a[0])
+    for i in adjacency_map:
+        assert(len(adjacency_map[i]) == 2)
+
+def walk_adjacency_map(adjacency_map):
+    start = 0
+    i = adjacency_map[start][0]
+    prev = start
+    traversed = 1
+    while i != start:
+        if adjacency_map[i][0] == prev:
+            prev = i
+            i = adjacency_map[i][1]
+        else:
+            prev = i
+            i = adjacency_map[i][0]
+        traversed += 1
+    return traversed
+
 def is_feasible(tour, kmove):
-    return True
+    adj = make_adjacency_map(tour)
+    perform_kmove(adj, kmove)
+    traversed = walk_adjacency_map(adj)
+    return traversed == len(tour)
 
 def segments_to_kmoves(xy, segments, tour):
     """segments are all segments that completely describe the difference between 2 local optima."""
