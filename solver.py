@@ -197,7 +197,8 @@ def combine_segment_array(segments):
 
 def segments_to_kmoves(xy, segments, tour):
     """segments are all segments that completely describe the difference between 2 local optima.
-    Returns beneficial kmoves."""
+    Returns beneficial kmoves. Note that independent k-moves when combined can become non-feasible (cycle-breaking).
+    """
     total_adds = sum([len(x['adds']) for x in segments])
     total_dels = sum([len(x['dels']) for x in segments])
     assert(total_adds == total_dels)
