@@ -236,7 +236,6 @@ def segments_to_kmoves(xy, segments, tour):
     if non_feasible_kmoves:
         gain = sum([x[0] for x in non_feasible_kmoves])
         if gain > 0:
-            print('        total gain for {} non-feasible moves: {}'.format(len(non_feasible_kmoves), gain))
             kmove_from_nonfeasible = combine_segment_array([x[1] for x in non_feasible_kmoves])
             # need to check feasibility. It might make sense that independent k-moves should be independent from all non-feasible moves,
             # but consider this example: a non-sequential 4-opt move consisting of 2 2-opt moves, one of which creates 2 cycles, and
@@ -244,6 +243,7 @@ def segments_to_kmoves(xy, segments, tour):
             # for the 4-opt move to be feasible. This means the first 2-opt move will be non-feasible alone, while the 2nd 2-opt move
             # can either be non-feasible or feasible, meaning the 4-opt move can have either only 1 non-feasible moves or 2.
             if is_feasible(tour, kmove_from_nonfeasible):
+                print('        total gain for {} non-feasible moves: {}'.format(len(non_feasible_kmoves), gain))
                 beneficial_kmoves.append(kmove_from_nonfeasible)
     return beneficial_kmoves
 
