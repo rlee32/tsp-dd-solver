@@ -67,7 +67,7 @@ def remove_trivial(segment_map, trivial_segment):
     May be called recursively in case merging results in another trivial segment.
     Returns independent k-move if result of merge, or trivial segment if no other merges possible
     (this means another trivial should be merged).
-    otherwise, return None.
+    otherwise, return None, meaning new segment has been placed in segment_map.
     """
     i = trivial_segment['start']
     assert(i == trivial_segment['end'])
@@ -75,11 +75,13 @@ def remove_trivial(segment_map, trivial_segment):
         # trivial_segment is not connected to any other segments, and should be merged with another
         # trivial segment.
         return trivial_segment
+    total_adds = sum([len(x['adds']) for x in segment_map[i]]) + len(trivial_segment['adds'])
     segments = segment_map[i]
     assert(len(segments) == 2)
     new_segment = combine_segments(trivial_segment, combine_segments(segments[0], segments[1]))
     new_segment['start'] = get_other(segments[0], i)
     new_segment['end'] = get_other(segments[1], i)
+    assert(len(new_segment['adds']) == total_adds)
     remove_segments(segment_map, i, new_segment['start'])
     # new_segment could be an independent k-move.
     if is_cyclic(new_segment):
@@ -109,12 +111,14 @@ def make_segment_map(segments):
 
 def consume_all_trivials(segments, trivials):
     """segments are non-trivial, acyclic segments."""
+    total_adds = sum([len(x['adds']) for x in segments]) + sum([len(x['adds']) for x in trivials])
     segment_map = make_segment_map(segments)
     new_trivials = []
     kmoves = []
     for t in trivials:
         merged_segment = remove_trivial(segment_map, t)
         if not merged_segment:
+            # non-trivial segment was added to segment_map.
             continue
         assert(is_cyclic(merged_segment))
         if is_balanced(merged_segment):
@@ -122,15 +126,26 @@ def consume_all_trivials(segments, trivials):
         else:
             new_trivials.append(merged_segment)
     assert(len(new_trivials) % 2 == 0)
+    # merge trivials that met at a common point.
     if new_trivials:
         kmoves_from_trivials, remaining_segments = merge_trivial_segments(new_trivials)
         assert(not remaining_segments)
         kmoves += kmoves_from_trivials
-    if len(kmoves) > 0:
-        print('    got {} more kmoves from consume_all_trivials.'.format(len(kmoves)))
+    # finally, merge all remaining segments that were not split into one kmove.
+    # TODO: there might be a way to efficiently split these segments into further independent kmoves.
+    last_kmove = {'adds': set(), 'dels': set()}
+    for i in segment_map:
+        for s in segment_map[i]:
+            last_kmove['adds'].update(s['adds'])
+            last_kmove['dels'].update(s['dels'])
+    last_kmove['adds'] = list(last_kmove['adds'])
+    last_kmove['dels'] = list(last_kmove['dels'])
+    kmoves.append(last_kmove)
+    kmove_adds = sum([len(x['adds']) for x in kmoves])
+    assert(total_adds == kmove_adds)
     return kmoves
 
-def kmove_cost(xy, segment):
+def kmove_gain(xy, segment):
     gain = sum([basic.edge_cost(xy, edge) for edge in segment['dels']])
     loss = sum([basic.edge_cost(xy, edge) for edge in segment['adds']])
     return gain - loss
@@ -174,8 +189,18 @@ def is_feasible(tour, kmove):
     traversed = walk_adjacency_map(adj)
     return traversed == len(tour)
 
+def combine_segment_array(segments):
+    combined = segments[0]
+    for s in segments[1:]:
+        combined = combine_segments(combined, s)
+    return combined
+
 def segments_to_kmoves(xy, segments, tour):
-    """segments are all segments that completely describe the difference between 2 local optima."""
+    """segments are all segments that completely describe the difference between 2 local optima.
+    Returns beneficial kmoves."""
+    total_adds = sum([len(x['adds']) for x in segments])
+    total_dels = sum([len(x['dels']) for x in segments])
+    assert(total_adds == total_dels)
     # segments that are cyclic and independent (sequential) k-moves.
     kmoves = [s for s in segments if is_cyclic(s) and is_balanced(s)]
     # trivial segments, segments that are cyclic but not independent k-moves.
@@ -184,17 +209,43 @@ def segments_to_kmoves(xy, segments, tour):
     other = [s for s in segments if not is_cyclic(s)]
     # find trivial segment pairs that can be merged into kmoves, leaving trivials that are part of
     # 2 separate segments.
+    assert(len(segments) == len(kmoves) + len(trivials) + len(other))
+    total_trivial_adds = sum([len(x['adds']) for x in trivials])
     kmoves_from_trivials, trivials = merge_trivial_segments(trivials)
-    if len(kmoves_from_trivials) > 0:
-        print('merged trivials to get {} kmoves!'.format(len(kmoves_from_trivials)))
+    assert(total_trivial_adds == sum([len(x['adds']) for x in kmoves_from_trivials]) + sum([len(x['adds']) for x in trivials]))
     kmoves += kmoves_from_trivials
     # Consume all trivials to produce remaining kmoves.
     remaining_kmoves = consume_all_trivials(other, trivials)
     kmoves += remaining_kmoves
-    print('    total independent kmoves found in local optima diff: {}'.format(len(kmoves)))
+    #print('    total independent kmoves found in local optima diff: {}'.format(len(kmoves)))
+    non_feasible_kmoves = [] # tuple (gain, kmove)
+    beneficial_kmoves = []
     for k in kmoves:
-        print('        {}-opt move with cost {} (feasible: {})'.format(len(k['dels']), kmove_cost(xy, k), is_feasible(tour, k)))
-    return kmoves
+        total_adds -= len(k['adds'])
+        total_dels -= len(k['dels'])
+        feasible = is_feasible(tour, k)
+        gain = kmove_gain(xy, k)
+        if feasible:
+            if gain > 0:
+                print('        {}-opt move with gain {}'.format(len(k['dels']), gain))
+                beneficial_kmoves.append(k)
+        else:
+            non_feasible_kmoves.append((gain, k))
+    assert(total_adds == 0)
+    assert(total_dels == 0)
+    if non_feasible_kmoves:
+        gain = sum([x[0] for x in non_feasible_kmoves])
+        if gain > 0:
+            print('        total gain for {} non-feasible moves: {}'.format(len(non_feasible_kmoves), gain))
+            kmove_from_nonfeasible = combine_segment_array([x[1] for x in non_feasible_kmoves])
+            # need to check feasibility. It might make sense that independent k-moves should be independent from all non-feasible moves,
+            # but consider this example: a non-sequential 4-opt move consisting of 2 2-opt moves, one of which creates 2 cycles, and
+            # the other joining the 2 cycles. The joining move alone can either create 2 cycles or not (an independent k-move) in order
+            # for the 4-opt move to be feasible. This means the first 2-opt move will be non-feasible alone, while the 2nd 2-opt move
+            # can either be non-feasible or feasible, meaning the 4-opt move can have either only 1 non-feasible moves or 2.
+            if is_feasible(tour, kmove_from_nonfeasible):
+                beneficial_kmoves.append(kmove_from_nonfeasible)
+    return beneficial_kmoves
 
 def perturbed_hill_climb(xy, tour):
     tries = 0
@@ -204,14 +255,11 @@ def perturbed_hill_climb(xy, tour):
         new_tour, new_length = two_opt.optimize(xy, tour_util.double_bridge(tour))
         segments = Splitter(tour, new_tour).get_segments()
         kmoves = segments_to_kmoves(xy, segments, tour)
-        print('kmoves: {}'.format(len(kmoves)))
         if new_length < best_length:
             print('found better tour in local optimum {}'.format(tries))
             tour = new_tour
             best_length = new_length
             success += 1
-        else:
-            print('ignored worse tour in local optimum {}'.format(tries))
         tries += 1
         print('current best: {}, success rate: {}'.format(best_length, success / tries))
 
