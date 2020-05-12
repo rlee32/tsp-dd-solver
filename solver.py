@@ -158,7 +158,7 @@ def make_adjacency_map(tour):
         adjacency[i] = [tour[si - 1], tour[(si + 1) % n]]
     return adjacency
 
-def perform_kmove(adjacency_map, kmove):
+def perform_kmove_on_adjacency_map(adjacency_map, kmove):
     for d in kmove['dels']:
         adjacency_map[d[0]] = [x for x in adjacency_map[d[0]] if d[1] != x]
         adjacency_map[d[1]] = [x for x in adjacency_map[d[1]] if d[0] != x]
@@ -172,7 +172,7 @@ def walk_adjacency_map(adjacency_map):
     start = 0
     i = adjacency_map[start][0]
     prev = start
-    traversed = 1
+    tour = [start]
     while i != start:
         if adjacency_map[i][0] == prev:
             prev = i
@@ -180,14 +180,16 @@ def walk_adjacency_map(adjacency_map):
         else:
             prev = i
             i = adjacency_map[i][0]
-        traversed += 1
-    return traversed
+        tour.append(i)
+    return tour
+
+def perform_kmove(tour, kmove):
+    adj = make_adjacency_map(tour)
+    perform_kmove_on_adjacency_map(adj, kmove)
+    return walk_adjacency_map(adj)
 
 def is_feasible(tour, kmove):
-    adj = make_adjacency_map(tour)
-    perform_kmove(adj, kmove)
-    traversed = walk_adjacency_map(adj)
-    return traversed == len(tour)
+    return len(perform_kmove(tour, kmove)) == len(tour)
 
 def combine_segment_array(segments):
     combined = segments[0]
@@ -197,7 +199,8 @@ def combine_segment_array(segments):
 
 def segments_to_kmoves(xy, segments, tour):
     """segments are all segments that completely describe the difference between 2 local optima.
-    Returns beneficial kmoves. Note that independent k-moves when combined can become non-feasible (cycle-breaking).
+    Returns a list of tuples with format (gain, beneficial kmove).
+    Note that independent k-moves when combined can become non-feasible (cycle-breaking).
     """
     total_adds = sum([len(x['adds']) for x in segments])
     total_dels = sum([len(x['dels']) for x in segments])
@@ -228,8 +231,8 @@ def segments_to_kmoves(xy, segments, tour):
         gain = kmove_gain(xy, k)
         if feasible:
             if gain > 0:
-                print('        {}-opt move with gain {}'.format(len(k['dels']), gain))
-                beneficial_kmoves.append(k)
+                #print('        {}-opt move with gain {}'.format(len(k['dels']), gain))
+                beneficial_kmoves.append((gain, k))
         else:
             non_feasible_kmoves.append((gain, k))
     assert(total_adds == 0)
@@ -244,43 +247,50 @@ def segments_to_kmoves(xy, segments, tour):
             # for the 4-opt move to be feasible. This means the first 2-opt move will be non-feasible alone, while the 2nd 2-opt move
             # can either be non-feasible or feasible, meaning the 4-opt move can have either only 1 non-feasible moves or 2.
             if is_feasible(tour, kmove_from_nonfeasible):
-                print('        total gain for {} non-feasible moves: {}'.format(len(non_feasible_kmoves), gain))
-                beneficial_kmoves.append(kmove_from_nonfeasible)
+                #print('        total gain for {} non-feasible moves: {}'.format(len(non_feasible_kmoves), gain))
+                beneficial_kmoves.append((gain, kmove_from_nonfeasible))
+    beneficial_kmoves.sort(key = lambda x: x[0])
     return beneficial_kmoves
+
+def apply_independent_kmoves(xy, tour, beneficial_kmoves):
+    """"""
+    for k in beneficial_kmoves:
+        print('    {}-opt move with gain {}'.format(len(k[1]['adds']), k[0]))
+    pass
 
 def perturbed_hill_climb(xy, tour):
     tries = 0
     success = 0
     best_length = tour_util.length(xy, tour)
     while True:
-        new_tour, new_length = two_opt.optimize(xy, tour_util.double_bridge(tour))
+        new_tour, naive_new_length = two_opt.optimize(xy, tour_util.double_bridge(tour))
         segments = Splitter(tour, new_tour).get_segments()
         kmoves = segments_to_kmoves(xy, segments, tour)
-        if new_length < best_length:
-            print('found better tour in local optimum {}'.format(tries))
+        apply_independent_kmoves(xy, tour, kmoves)
+        max_gain = 0
+        if kmoves:
+            max_gain = sum([k[0] for k in kmoves])
+        naive_gain = best_length - naive_new_length
+        if max_gain < naive_gain:
+            print('ERROR: max_gain {} is less than naive_gain {}'.format(max_gain, naive_gain))
+            print('segments: ', segments)
+            print('kmoves: ', kmoves)
+        assert(max_gain >= naive_gain)
+        dd_gain = 0 # gain due to decomposed kmoves.
+        if kmoves:
+            for k in kmoves:
+                pass
+        if naive_gain > 0 and naive_gain > dd_gain:
+            print('naive_gain ({}) greater than dd_gain ({})'.format(naive_gain, dd_gain))
             tour = new_tour
-            best_length = new_length
+            best_length = naive_new_length
             success += 1
         tries += 1
-        print('current best: {}, success rate: {}'.format(best_length, success / tries))
+        print('current best: {} (iteration {}), improvement rate: {}'.format(best_length, tries, success / tries))
 
 if __name__ == "__main__":
     problem_name = 'xqf131'
     xy = reader.read_xy("problems/{}.tsp".format(problem_name))
     tour = tour_util.default(xy)
     tour, improvement = two_opt.optimize(xy, tour)
-
-    """
-    tour, improvement = two_opt.optimize(xy, tour)
-    new_tour = tour_util.double_bridge(tour)
-    new_tour, improvement = two_opt.optimize(xy, new_tour)
-    plot_util.plot_difference(xy, tour, new_tour)
-    """
-
     perturbed_hill_climb(xy, tour)
-    """
-    #random.shuffle(tour)
-    for i in range(10):
-        new_tour = tour_util.double_bridge(tour)
-        plot_util.plot_difference(xy, tour, new_tour)
-    """
