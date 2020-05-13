@@ -284,17 +284,20 @@ def perturbed_hill_climb(xy, tour):
         dd_gain = 0 # gain due to decomposed kmoves.
         if kmoves:
             for k in kmoves:
-                print('trying {}-opt move'.format(len(k[1]['adds'])))
+                print('    trying {}-opt move with gain {}'.format(len(k[1]['adds']), k[0]))
                 test_tour = perform_kmove(tour, k[1])
                 if len(test_tour) == len(tour):
                     tour = test_tour
                     best_length -= k[0]
                     dd_gain += k[0]
-        if naive_gain > 0 and naive_gain > dd_gain:
+        if naive_gain > dd_gain:
             print('naive_gain ({}) greater than dd_gain ({})'.format(naive_gain, dd_gain))
             tour = new_tour
             best_length = naive_new_length
+        if naive_gain > 0 or dd_gain > 0:
             success += 1
+        if dd_gain > 0 and dd_gain > naive_gain:
+            print('    dd gain {} greater than naive gain {}'.format(dd_gain, naive_gain))
         tries += 1
         assert(best_length == basic.tour_length(xy, tour))
         print('current best: {} (iteration {}), improvement rate: {}'.format(best_length, tries, success / tries))
