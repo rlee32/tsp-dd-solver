@@ -279,12 +279,10 @@ def perturbed_hill_climb(xy, tour):
         if kmoves:
             max_gain = sum([k[0] for k in kmoves])
         naive_gain = best_length - naive_new_length
-        if max_gain < naive_gain:
-            print('ERROR: max_gain {} is less than naive_gain {}'.format(max_gain, naive_gain))
-            print('tour: ', tour)
-            print('segments: ', segments)
-            print('kmoves: ', kmoves)
-        assert(max_gain >= naive_gain)
+        # There may be cases where naive gain is more than decomposed gains:
+        # decomposed gains currently only return moves that can be independently performed.
+        # Infeasible moves that are improvements but only can be combined with other moves to become feasible
+        # (a potentially computationally expensive search) wil be excluded from the decomposed moves.
         dd_gain = 0 # gain due to decomposed kmoves.
         if kmoves:
             for k in kmoves:
