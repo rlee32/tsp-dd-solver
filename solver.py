@@ -5,6 +5,7 @@ import two_opt
 import basic
 import tour_util
 import plot_util
+import sys
 import random
 from splitter import Splitter
 
@@ -131,16 +132,17 @@ def consume_all_trivials(segments, trivials):
         kmoves_from_trivials, remaining_segments = merge_trivial_segments(new_trivials)
         assert(not remaining_segments)
         kmoves += kmoves_from_trivials
-    # finally, merge all remaining segments that were not split into one kmove.
-    # TODO: there might be a way to efficiently split these segments into further independent kmoves.
-    last_kmove = {'adds': set(), 'dels': set()}
-    for i in segment_map:
-        for s in segment_map[i]:
-            last_kmove['adds'].update(s['adds'])
-            last_kmove['dels'].update(s['dels'])
-    last_kmove['adds'] = list(last_kmove['adds'])
-    last_kmove['dels'] = list(last_kmove['dels'])
-    kmoves.append(last_kmove)
+    if segment_map:
+        # finally, merge all remaining segments that were not split into one kmove.
+        # TODO: there might be a way to efficiently split these segments into further independent kmoves.
+        last_kmove = {'adds': set(), 'dels': set()}
+        for i in segment_map:
+            for s in segment_map[i]:
+                last_kmove['adds'].update(s['adds'])
+                last_kmove['dels'].update(s['dels'])
+        last_kmove['adds'] = list(last_kmove['adds'])
+        last_kmove['dels'] = list(last_kmove['dels'])
+        kmoves.append(last_kmove)
     kmove_adds = sum([len(x['adds']) for x in kmoves])
     assert(total_adds == kmove_adds)
     return kmoves
@@ -198,14 +200,11 @@ def combine_segment_array(segments):
         combined = combine_segments(combined, s)
     return combined
 
-def segments_to_kmoves(xy, segments, tour):
+def segments_to_kmoves(segments):
     """segments are all segments that completely describe the difference between 2 local optima.
     Returns a list of tuples with format (gain, beneficial kmove).
     Note that independent k-moves when combined can become non-feasible (cycle-breaking).
     """
-    total_adds = sum([len(x['adds']) for x in segments])
-    total_dels = sum([len(x['dels']) for x in segments])
-    assert(total_adds == total_dels)
     # segments that are cyclic and independent (sequential) k-moves.
     kmoves = [s for s in segments if is_cyclic(s) and is_balanced(s)]
     # trivial segments, segments that are cyclic but not independent k-moves.
@@ -223,6 +222,17 @@ def segments_to_kmoves(xy, segments, tour):
     remaining_kmoves = consume_all_trivials(other, trivials)
     kmoves += remaining_kmoves
     #print('    total independent kmoves found in local optima diff: {}'.format(len(kmoves)))
+    return kmoves
+
+def segments_to_beneficial_kmoves(xy, segments, tour):
+    """segments are all segments that completely describe the difference between 2 local optima.
+    Returns a list of tuples with format (gain, beneficial kmove).
+    Note that independent k-moves when combined can become non-feasible (cycle-breaking).
+    """
+    total_adds = sum([len(x['adds']) for x in segments])
+    total_dels = sum([len(x['dels']) for x in segments])
+    assert(total_adds == total_dels)
+    kmoves = segments_to_kmoves(segments)
     non_feasible_kmoves = [] # tuple (gain, kmove)
     beneficial_kmoves = []
     for k in kmoves:
@@ -253,12 +263,6 @@ def segments_to_kmoves(xy, segments, tour):
     beneficial_kmoves.sort(key = lambda x: x[0], reverse = True)
     return beneficial_kmoves
 
-def apply_independent_kmoves(xy, tour, beneficial_kmoves):
-    """"""
-    for k in beneficial_kmoves:
-        print('    {}-opt move with gain {}'.format(len(k[1]['adds']), k[0]))
-    pass
-
 def perturbed_hill_climb(xy, tour):
     tries = 0
     success = 0
@@ -266,14 +270,14 @@ def perturbed_hill_climb(xy, tour):
     while True:
         new_tour, naive_new_length = two_opt.optimize(xy, tour_util.double_bridge(tour))
         segments = Splitter(tour, new_tour).get_segments()
-        kmoves = segments_to_kmoves(xy, segments, tour)
-        apply_independent_kmoves(xy, tour, kmoves)
+        kmoves = segments_to_beneficial_kmoves(xy, segments, tour)
         max_gain = 0
         if kmoves:
             max_gain = sum([k[0] for k in kmoves])
         naive_gain = best_length - naive_new_length
         if max_gain < naive_gain:
             print('ERROR: max_gain {} is less than naive_gain {}'.format(max_gain, naive_gain))
+            print('tour: ', tour)
             print('segments: ', segments)
             print('kmoves: ', kmoves)
         assert(max_gain >= naive_gain)
@@ -284,6 +288,7 @@ def perturbed_hill_climb(xy, tour):
                 test_tour = perform_kmove(tour, k[1])
                 if len(test_tour) == len(tour):
                     tour = test_tour
+                    best_length -= k[0]
                     dd_gain += k[0]
         if naive_gain > 0 and naive_gain > dd_gain:
             print('naive_gain ({}) greater than dd_gain ({})'.format(naive_gain, dd_gain))
@@ -291,6 +296,7 @@ def perturbed_hill_climb(xy, tour):
             best_length = naive_new_length
             success += 1
         tries += 1
+        assert(best_length == basic.tour_length(xy, tour))
         print('current best: {} (iteration {}), improvement rate: {}'.format(best_length, tries, success / tries))
 
 if __name__ == "__main__":
