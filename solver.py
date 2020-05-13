@@ -9,6 +9,10 @@ import sys
 import random
 from splitter import Splitter
 
+# length at which solver will stop.
+# useful for measuring how long it takes to get to a known global optimum.
+TARGET_LENGTH = 564
+
 def is_cyclic(segment):
     return segment['start'] == segment['end']
 
@@ -299,10 +303,14 @@ def perturbed_hill_climb(xy, tour):
         if dd_gain > 0 and dd_gain > naive_gain:
             print('    dd gain {} greater than naive gain {}'.format(dd_gain, naive_gain))
         tries += 1
-        assert(best_length == basic.tour_length(xy, tour))
+        current_length = basic.tour_length(xy, tour)
+        assert(best_length == current_length)
+        if current_length <= TARGET_LENGTH:
+            break
         print('current best: {} (iteration {}), improvement rate: {}'.format(best_length, tries, success / tries))
 
 if __name__ == "__main__":
+    print('stopping at target length {}'.format(TARGET_LENGTH))
     problem_name = 'xqf131'
     xy = reader.read_xy("problems/{}.tsp".format(problem_name))
     tour = tour_util.default(xy)
