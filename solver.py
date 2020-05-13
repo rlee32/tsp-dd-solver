@@ -272,7 +272,10 @@ def perturbed_hill_climb(xy, tour):
     success = 0
     best_length = tour_util.length(xy, tour)
     while True:
-        new_tour, naive_new_length = two_opt.optimize(xy, tour_util.double_bridge(tour))
+        new_tour, naive_new_length = two_opt.optimize(xy, tour_util.double_bridge(tour)) # double bridge
+        #test_tour = tour[:]
+        #random.shuffle(test_tour)
+        #new_tour, naive_new_length = two_opt.optimize(xy, test_tour) # random restart
         segments = Splitter(tour, new_tour).get_segments()
         kmoves = segments_to_beneficial_kmoves(xy, segments, tour)
         max_gain = 0
@@ -306,6 +309,28 @@ def perturbed_hill_climb(xy, tour):
         if current_length <= TARGET_LENGTH:
             break
         print('current best: {} (iteration {}), improvement rate: {}'.format(best_length, tries, success / tries))
+
+def perturbed_hill_climb_naive(xy, tour):
+    tries = 0
+    success = 0
+    best_length = tour_util.length(xy, tour)
+    while True:
+        new_tour, naive_new_length = two_opt.optimize(xy, tour_util.double_bridge(tour)) # double bridge
+        #test_tour = tour[:]
+        #random.shuffle(test_tour)
+        #new_tour, naive_new_length = two_opt.optimize(xy, test_tour) # random restart
+        naive_gain = best_length - naive_new_length
+        if naive_gain > 0:
+            tour = new_tour
+            best_length = naive_new_length
+            success += 1
+        tries += 1
+        current_length = basic.tour_length(xy, tour)
+        assert(best_length == current_length)
+        if current_length <= TARGET_LENGTH:
+            break
+        print('current best: {} (iteration {}), improvement rate: {}'.format(best_length, tries, success / tries))
+
 
 if __name__ == "__main__":
     print('stopping at target length {}'.format(TARGET_LENGTH))
