@@ -172,15 +172,16 @@ def walk_adjacency_map(adjacency_map):
     start = 0
     i = adjacency_map[start][0]
     prev = start
-    tour = [start]
+    tour = []
     while i != start:
+        tour.append(i)
         if adjacency_map[i][0] == prev:
             prev = i
             i = adjacency_map[i][1]
         else:
             prev = i
             i = adjacency_map[i][0]
-        tour.append(i)
+    tour.append(i)
     return tour
 
 def perform_kmove(tour, kmove):
@@ -249,7 +250,7 @@ def segments_to_kmoves(xy, segments, tour):
             if is_feasible(tour, kmove_from_nonfeasible):
                 #print('        total gain for {} non-feasible moves: {}'.format(len(non_feasible_kmoves), gain))
                 beneficial_kmoves.append((gain, kmove_from_nonfeasible))
-    beneficial_kmoves.sort(key = lambda x: x[0])
+    beneficial_kmoves.sort(key = lambda x: x[0], reverse = True)
     return beneficial_kmoves
 
 def apply_independent_kmoves(xy, tour, beneficial_kmoves):
@@ -279,7 +280,11 @@ def perturbed_hill_climb(xy, tour):
         dd_gain = 0 # gain due to decomposed kmoves.
         if kmoves:
             for k in kmoves:
-                pass
+                print('trying {}-opt move'.format(len(k[1]['adds'])))
+                test_tour = perform_kmove(tour, k[1])
+                if len(test_tour) == len(tour):
+                    tour = test_tour
+                    dd_gain += k[0]
         if naive_gain > 0 and naive_gain > dd_gain:
             print('naive_gain ({}) greater than dd_gain ({})'.format(naive_gain, dd_gain))
             tour = new_tour
